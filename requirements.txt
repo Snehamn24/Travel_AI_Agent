@@ -1,0 +1,9 @@
+streamlit
+langchain
+langchain-openai
+openai
+requests
+pandas
+python-dotenv
+langchain-google-genai
+google-generativeai
