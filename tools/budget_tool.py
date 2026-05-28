@@ -1,11 +1,11 @@
-from langchain.tools import tool
+# Local daily expense mapping based on travel style
 expense_map = {
+    "basic": 800,
     "budget": 800,
     "moderate": 1500,
     "luxury": 4000
 }
 
-@tool
 def estimate_budget(
     flight_price,
     hotel_price_per_night,
@@ -13,8 +13,9 @@ def estimate_budget(
     travel_style="moderate"
 ):
     """
-    Estimate total travel budget
-    based on travel style.
+    Estimate total travel budget based on all expenses.
+    Input: flight_price, hotel_price_per_night, number_of_days, travel_style (budget/moderate/luxury)
+    Returns: Budget breakdown with flight, hotel, local expenses, and total cost
     """
 
     try:

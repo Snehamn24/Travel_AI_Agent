@@ -1,14 +1,15 @@
 import json
-from langchain.tools import tool
 
-@tool
+
 def search_hotels(city, min_stars=0, max_price=float("inf")):
     """
-    Search hotels in a city.
+    Search hotels in a city by name, rating, and price.
+    Input: city name (required), min_stars (0-5), max_price (numeric)
+    Returns: Top 5 hotels sorted by rating and price
     """
 
     try:
-
+        # Load hotel dataset and filter by user preferences
         with open("data/hotels.json", "r", encoding="utf-8") as file:
             hotels = json.load(file)
 

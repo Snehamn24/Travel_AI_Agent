@@ -1,16 +1,15 @@
 import json
-from langchain.tools import tool
 
 
-@tool
 def search_flights(source, destination):
     """
-    Search flights between source and destination.
-    Returns top 5 cheapest flights.
+    Search flights between source and destination cities.
+    Input: source city name, destination city name
+    Returns: Top 5 cheapest flights with airline, times, and prices
     """
 
     try:
-
+        # Load flight records from the local JSON dataset
         with open("data/flights.json", "r", encoding="utf-8") as file:
             flights = json.load(file)
 

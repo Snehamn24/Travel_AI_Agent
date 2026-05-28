@@ -1,7 +1,6 @@
 import requests
-from langchain.tools import tool
 
-
+# Mapping of Open-Meteo weather codes to human-readable conditions
 weather_codes = {
     0: "Clear Sky",
     1: "Mainly Clear",
@@ -9,9 +8,12 @@ weather_codes = {
     3: "Overcast"
 }
 
-@tool
 def get_weather(latitude, longitude):
-
+    """
+    Get weather forecast for a specific location.
+    Input: latitude (float), longitude (float) of the location
+    Returns: 7-day weather forecast with daily temperature and conditions
+    """
     try:
 
         url = (

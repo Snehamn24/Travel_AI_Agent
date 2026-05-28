@@ -1,14 +1,15 @@
 import json
-from langchain.tools import tool
 
-@tool
+
 def search_places(city, place_type=None, min_rating=0):
     """
-    Search tourist places.
+    Search tourist attractions and places in a city.
+    Input: city name (required), place_type (optional), min_rating (0-5)
+    Returns: Top 5 attractions sorted by rating
     """
 
     try:
-
+        # Read place data and apply city/type/rating filters
         with open("data/places.json", "r", encoding="utf-8") as file:
             places = json.load(file)
 
