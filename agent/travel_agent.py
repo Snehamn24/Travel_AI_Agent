@@ -1,10 +1,13 @@
-from __future__ import annotations
-
+import json
+import os
 import re
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
+from langchain.agents import AgentExecutor, Tool, create_react_agent
+from langchain.prompts import PromptTemplate
+from langchain_groq import ChatGroq
 
 from tools.budget_tool import estimate_budget
 from tools.flight_tool import search_flights
@@ -20,9 +23,6 @@ SUPPORTED_CITIES = sorted(CITY_COORDINATES.keys())
 
 STYLE_ALIASES = {
     "cheap": "budget",
-    "low cost": "budget",
-    "low-cost": "budget",
-    "basic": "budget",
     "budget": "budget",
     "affordable": "budget",
     "medium": "moderate",
@@ -67,15 +67,13 @@ def _extract_days(query: str) -> Optional[int]:
 
     match = re.search(r"(\d+)\s*(day|days)", query)
     if match:
-        days = int(match.group(1))
-        return days
+        return int(match.group(1))
 
     match = re.search(r"for\s+(\d+)", query)
     if match:
-        days = int(match.group(1))
-        return days
+        return int(match.group(1))
 
-    word_days = {
+    words = {
         "one": 1,
         "two": 2,
         "three": 3,
@@ -85,7 +83,7 @@ def _extract_days(query: str) -> Optional[int]:
         "seven": 7,
     }
 
-    for word, value in word_days.items():
+    for word, value in words.items():
         if word in query:
             return value
 
@@ -102,33 +100,33 @@ def _extract_style(query: str) -> Optional[str]:
     return None
 
 
-def _extract_cities(query: str) -> Tuple[Optional[str], Optional[str]]:
+def _extract_cities(query: str):
     query_lower = query.lower()
 
     source = None
     destination = None
 
-    from_to_match = re.search(
+    match = re.search(
         r"from\s+([a-zA-Z\s]+?)\s+to\s+([a-zA-Z\s]+?)(?:\s+for|\s+with|\s+\d|$)",
         query_lower,
     )
 
-    if from_to_match:
-        source = _normalize_city(from_to_match.group(1))
-        destination = _normalize_city(from_to_match.group(2))
+    if match:
+        source = _normalize_city(match.group(1))
+        destination = _normalize_city(match.group(2))
         return source, destination
 
-    mentioned_cities = []
+    mentioned = []
 
     for city in SUPPORTED_CITIES:
         if city.lower() in query_lower:
-            mentioned_cities.append(city)
+            mentioned.append(city)
 
-    if len(mentioned_cities) >= 2:
-        source = mentioned_cities[0]
-        destination = mentioned_cities[1]
-    elif len(mentioned_cities) == 1:
-        destination = mentioned_cities[0]
+    if len(mentioned) >= 2:
+        source = mentioned[0]
+        destination = mentioned[1]
+    elif len(mentioned) == 1:
+        destination = mentioned[0]
 
     return source, destination
 
@@ -140,7 +138,6 @@ def _extract_interests(query: str) -> str:
         "food",
         "shopping",
         "history",
-        "historical",
         "temple",
         "beach",
         "nature",
@@ -150,29 +147,16 @@ def _extract_interests(query: str) -> str:
         "culture",
         "family",
         "romantic",
-        "relax",
-        "local",
         "photography",
     ]
 
-    found = []
+    found = [word for word in keywords if word in query_lower]
 
-    for keyword in keywords:
-        if keyword in query_lower:
-            found.append(keyword)
-
-    if found:
-        return ", ".join(sorted(set(found)))
-
-    return "general sightseeing"
+    return ", ".join(found) if found else "general sightseeing"
 
 
-def analyze_user_query(
-    query: str,
-    previous_context: Optional[Dict[str, Any]] = None,
-) -> TravelQuery:
+def analyze_user_query(query: str, previous_context: Optional[Dict[str, Any]] = None) -> TravelQuery:
     previous_context = previous_context or {}
-    query = query.strip()
 
     old = TravelQuery(
         source=previous_context.get("source"),
@@ -198,7 +182,7 @@ def analyze_user_query(
     )
 
 
-def get_missing_fields(parsed: TravelQuery) -> List[str]:
+def get_missing_fields(parsed: TravelQuery):
     missing = []
 
     if not parsed.source:
@@ -222,10 +206,6 @@ def is_query_complete(parsed: TravelQuery) -> bool:
 
 def build_follow_up_question(parsed: TravelQuery) -> str:
     missing = get_missing_fields(parsed)
-
-    if not missing:
-        return "I have all the required details."
-
     questions = []
 
     if "source city" in missing:
@@ -245,50 +225,178 @@ def build_follow_up_question(parsed: TravelQuery) -> str:
     )
 
 
+def _json_input(tool_input: str) -> Dict[str, Any]:
+    try:
+        return json.loads(tool_input)
+    except Exception:
+        return {}
+
+
 def _price_to_int(value: Any) -> int:
     if value is None:
         return 0
 
-    if isinstance(value, int):
-        return value
-
-    if isinstance(value, float):
-        return int(value)
-
     text = str(value)
     digits = re.sub(r"[^0-9]", "", text)
-
     return int(digits) if digits else 0
 
 
-def _validate_days(days: int) -> int:
+def flight_tool(tool_input: str) -> str:
+    data = _json_input(tool_input)
+    result = search_flights(data.get("source"), data.get("destination"))
+    return json.dumps(result, indent=2)
+
+
+def hotel_tool(tool_input: str) -> str:
+    data = _json_input(tool_input)
+    style = data.get("travel_style", "budget")
+
+    min_stars = {
+        "budget": 2,
+        "moderate": 3,
+        "luxury": 4,
+    }.get(style, 2)
+
+    max_price = {
+        "budget": 3000,
+        "moderate": 10000,
+        "luxury": 50000,
+    }.get(style, 3000)
+
+    result = search_hotels(
+        data.get("destination"),
+        min_stars=min_stars,
+        max_price=max_price,
+    )
+
+    return json.dumps(result, indent=2)
+
+
+def places_tool(tool_input: str) -> str:
+    data = _json_input(tool_input)
+    result = search_places(data.get("destination"), min_rating=4)
+    return json.dumps(result, indent=2)
+
+
+def weather_tool(tool_input: str) -> str:
+    data = _json_input(tool_input)
+    destination = data.get("destination")
+
+    coords = get_coordinates(destination)
+
+    if not coords:
+        return "Weather data not available."
+
+    result = get_weather(coords[0], coords[1])
+    return json.dumps(result, indent=2)
+
+
+def budget_tool(tool_input: str) -> str:
+    data = _json_input(tool_input)
+
+    result = estimate_budget(
+        int(data.get("flight_price", 0)),
+        int(data.get("hotel_price", 0)),
+        int(data.get("days", 3)),
+        data.get("travel_style", "budget"),
+    )
+
+    return json.dumps(result, indent=2)
+
+
+tools = [
+    Tool(
+        name="FlightSearchTool",
+        func=flight_tool,
+        description='Search flights. Input JSON: {"source": "Bangalore", "destination": "Delhi"}',
+    ),
+    Tool(
+        name="HotelSearchTool",
+        func=hotel_tool,
+        description='Search hotels. Input JSON: {"destination": "Delhi", "travel_style": "moderate"}',
+    ),
+    Tool(
+        name="PlacesSearchTool",
+        func=places_tool,
+        description='Search tourist places. Input JSON: {"destination": "Delhi"}',
+    ),
+    Tool(
+        name="WeatherTool",
+        func=weather_tool,
+        description='Get weather forecast. Input JSON: {"destination": "Delhi"}',
+    ),
+    Tool(
+        name="BudgetEstimatorTool",
+        func=budget_tool,
+        description='Estimate budget. Input JSON: {"flight_price": 5000, "hotel_price": 3000, "days": 5, "travel_style": "moderate"}',
+    ),
+]
+
+
+REACT_PROMPT = PromptTemplate.from_template(
+    """
+You are a LangChain ReAct travel planning agent.
+
+Use tools to solve the user request.
+
+Tools:
+{tools}
+
+Use this format:
+
+Question: user request
+Thought: reasoning
+Action: one of [{tool_names}]
+Action Input: valid JSON
+Observation: tool result
+Thought: reasoning
+Final Answer: final structured travel plan
+
+Rules:
+- Use FlightSearchTool.
+- Use HotelSearchTool.
+- Use PlacesSearchTool.
+- Use WeatherTool.
+- Use BudgetEstimatorTool.
+- Final answer must include trip summary, selected flight, hotel recommendation, day-wise itinerary, weather, and budget.
+
+Question: {input}
+
+{agent_scratchpad}
+"""
+)
+
+
+def create_travel_react_agent():
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        temperature=0,
+        groq_api_key=os.getenv("GROQ_API_KEY"),
+    )
+
+    agent = create_react_agent(
+        llm=llm,
+        tools=tools,
+        prompt=REACT_PROMPT,
+    )
+
+    return AgentExecutor(
+        agent=agent,
+        tools=tools,
+        verbose=True,
+        handle_parsing_errors=True,
+        max_iterations=8,
+    )
+
+
+def generate_structured_travel_data(parsed: TravelQuery) -> Dict[str, Any]:
+    days = int(parsed.days)
+
     if days < 3:
-        return 3
+        days = 3
 
     if days > 7:
-        return 7
-
-    return days
-
-
-def generate_travel_plan_from_context(context: Dict[str, Any]) -> Dict[str, Any]:
-    parsed = TravelQuery(**context)
-
-    if not is_query_complete(parsed):
-        raise ValueError(build_follow_up_question(parsed))
-
-    parsed.days = _validate_days(int(parsed.days))
-
-    tool_decisions = [
-        "Understood the user's travel query.",
-        "Checked missing information.",
-        "Called flight search tool.",
-        "Called hotel search tool.",
-        "Called places search tool.",
-        "Called weather tool.",
-        "Called budget estimation tool.",
-        "Generated structured itinerary.",
-    ]
+        days = 7
 
     flights = search_flights(parsed.source, parsed.destination)
 
@@ -303,26 +411,23 @@ def generate_travel_plan_from_context(context: Dict[str, Any]) -> Dict[str, Any]
     coords = get_coordinates(parsed.destination)
     weather = get_weather(coords[0], coords[1]) if coords else []
 
-    flight_price = 0
-    hotel_price = 0
+    selected_flight = flights[0] if isinstance(flights, list) and flights else {}
+    selected_hotel = hotels[0] if isinstance(hotels, list) and hotels else {}
 
-    if isinstance(flights, list) and len(flights) > 0:
-        flight_price = _price_to_int(flights[0].get("Price", 0))
-
-    if isinstance(hotels, list) and len(hotels) > 0:
-        hotel_price = _price_to_int(hotels[0].get("Price Per Night", 0))
+    flight_price = _price_to_int(selected_flight.get("Price", 0))
+    hotel_price = _price_to_int(selected_hotel.get("Price Per Night", 0))
 
     budget = estimate_budget(
         flight_price,
         hotel_price,
-        parsed.days,
+        days,
         parsed.travel_style,
     )
 
-    itinerary = generate_itinerary(
+    final_plan = generate_itinerary(
         source=parsed.source,
         destination=parsed.destination,
-        days=parsed.days,
+        days=days,
         flights=flights if isinstance(flights, list) else [],
         hotels=hotels if isinstance(hotels, list) else [],
         places=places if isinstance(places, list) else [],
@@ -333,17 +438,52 @@ def generate_travel_plan_from_context(context: Dict[str, Any]) -> Dict[str, Any]
     )
 
     return {
-        "user_query": parsed.raw_query,
         "query_analysis": asdict(parsed),
-        "agent_tool_decisions": tool_decisions,
-        "retrieved_data": {
-            "flights": flights,
-            "hotels": hotels,
-            "places": places,
-            "weather": weather,
+        "trip_summary": {
+            "source": parsed.source,
+            "destination": parsed.destination,
+            "days": days,
+            "travel_style": parsed.travel_style,
+            "interests": parsed.interests,
         },
-        "final_plan": itinerary,
+        "selected_flight": selected_flight,
+        "hotel_recommendations": hotels if isinstance(hotels, list) else [],
+        "selected_hotel": selected_hotel,
+        "places": places if isinstance(places, list) else [],
+        "weather": weather if isinstance(weather, list) else [],
+        "budget": budget,
+        "final_plan": final_plan,
     }
+
+
+def generate_travel_plan_from_context(context: Dict[str, Any]) -> Dict[str, Any]:
+    parsed = TravelQuery(**context)
+
+    if not is_query_complete(parsed):
+        raise ValueError(build_follow_up_question(parsed))
+
+    structured_data = generate_structured_travel_data(parsed)
+
+    react_query = f"""
+Plan a {structured_data["trip_summary"]["days"]}-day {parsed.travel_style} trip.
+
+Source: {parsed.source}
+Destination: {parsed.destination}
+Interests: {parsed.interests}
+
+Use all available tools and generate a final structured travel plan.
+"""
+
+    try:
+        executor = create_travel_react_agent()
+        response = executor.invoke({"input": react_query})
+        react_output = response.get("output", "")
+    except Exception as error:
+        react_output = f"ReAct Agent explanation could not be generated: {error}"
+
+    structured_data["react_agent_output"] = react_output
+
+    return structured_data
 
 
 def generate_travel_plan(query: str) -> Dict[str, Any]:
@@ -352,44 +492,4 @@ def generate_travel_plan(query: str) -> Dict[str, Any]:
     if not is_query_complete(parsed):
         raise ValueError(build_follow_up_question(parsed))
 
-    return generate_travel_plan_from_context(asdict(parsed))
-
-
-def format_plan_markdown(plan: Dict[str, Any]) -> str:
-    final = plan["final_plan"]
-    summary = final["trip_summary"]
-
-    lines = [
-        f"# {summary.get('title', 'Travel Plan')}",
-        "",
-        "## Trip Summary",
-        f"- Source: {summary.get('source')}",
-        f"- Destination: {summary.get('destination')}",
-        f"- Duration: {summary.get('days')} days",
-        f"- Travel Style: {summary.get('travel_style')}",
-        f"- Interests: {summary.get('interests')}",
-        "",
-        "## Day-wise Itinerary",
-    ]
-
-    for day in final.get("day_wise_plan", []):
-        lines.extend(
-            [
-                "",
-                f"### Day {day.get('day')}",
-                f"- Morning: {day.get('morning')}",
-                f"- Afternoon: {day.get('afternoon')}",
-                f"- Evening: {day.get('evening')}",
-                f"- Estimated Expenses: {day.get('estimated_expenses')}",
-            ]
-        )
-
-    lines.append("")
-    lines.append("## Budget Breakdown")
-
-    budget = final.get("budget_breakdown", {})
-
-    for key, value in budget.items():
-        lines.append(f"- {key}: {value}")
-
-    return "\n".join(lines)
+    return generate_travel_plan_from_context(parsed.__dict__)
