@@ -3,10 +3,12 @@ import json
 
 def search_flights(source, destination):
     """
-    Search flights from source to destination.
+    Search flights between source and destination.
+    Returns top 5 cheapest flights.
     """
 
     try:
+
         with open("data/flights.json", "r", encoding="utf-8") as file:
             flights = json.load(file)
 
@@ -21,9 +23,28 @@ def search_flights(source, destination):
 
                 results.append(flight)
 
+        # Sort by cheapest price
         results.sort(key=lambda x: x["price"])
 
-        return results[:5]
+        if not results:
+            return f"No flights found from {source} to {destination}."
+
+        formatted_results = []
+
+        for flight in results[:5]:
+
+            formatted_results.append(
+                {
+                    "Airline": flight["airline"],
+                    "From": flight["from"],
+                    "To": flight["to"],
+                    "Departure": flight["departure_time"],
+                    "Arrival": flight["arrival_time"],
+                    "Price": f"₹{flight['price']}"
+                }
+            )
+
+        return formatted_results
 
     except Exception as e:
         return {"error": str(e)}

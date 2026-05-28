@@ -3,10 +3,7 @@ import json
 
 def search_hotels(city, min_stars=0, max_price=float("inf")):
     """
-    Search hotels based on:
-    - city
-    - minimum stars
-    - maximum price
+    Search hotels in a city.
     """
 
     try:
@@ -26,15 +23,28 @@ def search_hotels(city, min_stars=0, max_price=float("inf")):
 
                 results.append(hotel)
 
-        # Sort by stars first, then cheaper price
         results.sort(
             key=lambda x: (-x["stars"], x["price_per_night"])
         )
 
         if not results:
-            return "No hotels found."
+            return f"No hotels found in {city}."
 
-        return results[:5]
+        formatted_results = []
+
+        for hotel in results[:5]:
+
+            formatted_results.append(
+                {
+                    "Hotel Name": hotel["name"],
+                    "City": hotel["city"],
+                    "Stars": hotel["stars"],
+                    "Price Per Night": f"₹{hotel['price_per_night']}",
+                    "Amenities": ", ".join(hotel["amenities"])
+                }
+            )
+
+        return formatted_results
 
     except Exception as e:
         return {"error": str(e)}

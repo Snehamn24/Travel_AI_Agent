@@ -3,10 +3,7 @@ import json
 
 def search_places(city, place_type=None, min_rating=0):
     """
-    Search places based on:
-    - city
-    - place type
-    - minimum rating
+    Search tourist places.
     """
 
     try:
@@ -34,16 +31,28 @@ def search_places(city, place_type=None, min_rating=0):
             if city_match and type_match and rating_match:
                 results.append(place)
 
-        # Sort by highest rating
         results.sort(
             key=lambda x: x["rating"],
             reverse=True
         )
 
         if not results:
-            return "No places found."
+            return f"No places found in {city}."
 
-        return results[:5]
+        formatted_results = []
+
+        for place in results[:5]:
+
+            formatted_results.append(
+                {
+                    "Place": place["name"],
+                    "City": place["city"],
+                    "Type": place["type"],
+                    "Rating": place["rating"]
+                }
+            )
+
+        return formatted_results
 
     except Exception as e:
         return {"error": str(e)}
