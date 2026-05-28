@@ -1,6 +1,8 @@
 import json
+from langchain.tools import tool
 
 
+@tool
 def search_flights(source, destination):
     """
     Search flights between source and destination.

@@ -1,4 +1,5 @@
 import requests
+from langchain.tools import tool
 
 
 weather_codes = {
@@ -8,7 +9,7 @@ weather_codes = {
     3: "Overcast"
 }
 
-
+@tool
 def get_weather(latitude, longitude):
 
     try:

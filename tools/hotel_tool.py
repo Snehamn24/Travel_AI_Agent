@@ -1,6 +1,7 @@
 import json
+from langchain.tools import tool
 
-
+@tool
 def search_hotels(city, min_stars=0, max_price=float("inf")):
     """
     Search hotels in a city.

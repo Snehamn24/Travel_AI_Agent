@@ -1,10 +1,11 @@
+from langchain.tools import tool
 expense_map = {
     "budget": 800,
     "moderate": 1500,
     "luxury": 4000
 }
 
-
+@tool
 def estimate_budget(
     flight_price,
     hotel_price_per_night,

@@ -1,6 +1,7 @@
 import json
+from langchain.tools import tool
 
-
+@tool
 def search_places(city, place_type=None, min_rating=0):
     """
     Search tourist places.
