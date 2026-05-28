@@ -1,11 +1,14 @@
-import json
-import os
-import re
+import json #{"source": "Bangalore", "destination": "Delhi"}
+import os #os is used to read API key from .env.
+import re #re is used for regex pattern matching, like extracting:
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from langchain.agents import AgentExecutor, Tool, create_react_agent
+
+#real LanChain ReACT agent
+#LLM thinks → chooses tool → gets observation → thinks again → final answer
+from langchain.agents import AgentExecutor, Tool, create_react_agent #wraps the py functions to LAngchain tools , AgentExcutor creates AGent
 from langchain.prompts import PromptTemplate
 from langchain_groq import ChatGroq
 
@@ -35,7 +38,7 @@ STYLE_ALIASES = {
 }
 
 
-@dataclass
+@dataclass #stores the details from the user
 class TravelQuery:
     source: Optional[str] = None
     destination: Optional[str] = None
@@ -45,7 +48,7 @@ class TravelQuery:
     raw_query: str = ""
 
 
-def _normalize_city(city: str) -> Optional[str]:
+def _normalize_city(city: str) -> Optional[str]: # cleans the input given
     if not city:
         return None
 
@@ -100,7 +103,7 @@ def _extract_style(query: str) -> Optional[str]:
     return None
 
 
-def _extract_cities(query: str):
+def _extract_cities(query: str): #extract source and destination
     query_lower = query.lower()
 
     source = None
@@ -131,7 +134,7 @@ def _extract_cities(query: str):
     return source, destination
 
 
-def _extract_interests(query: str) -> str:
+def _extract_interests(query: str) -> str: #This extracts travel interests.
     query_lower = query.lower()
 
     keywords = [
@@ -155,7 +158,7 @@ def _extract_interests(query: str) -> str:
     return ", ".join(found) if found else "general sightseeing"
 
 
-def analyze_user_query(query: str, previous_context: Optional[Dict[str, Any]] = None) -> TravelQuery:
+def analyze_user_query(query: str, previous_context: Optional[Dict[str, Any]] = None) -> TravelQuery: #connects the previous conversation
     previous_context = previous_context or {}
 
     old = TravelQuery(
