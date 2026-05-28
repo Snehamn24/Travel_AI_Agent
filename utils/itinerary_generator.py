@@ -10,7 +10,8 @@ def generate_itinerary(
     places,
     weather,
     budget,
-    travel_style
+    travel_style,
+    interests="general sightseeing"
 ):
     """
     Generate a structured day-wise itinerary.
@@ -23,6 +24,7 @@ def generate_itinerary(
             "destination": destination,
             "duration_days": days,
             "travel_style": travel_style,
+            "interests": interests,
         },
         "selected_flight": None,
         "selected_hotel": None,
@@ -44,11 +46,11 @@ def generate_itinerary(
     for day in range(1, days + 1):
         day_plan = {
             "day": day,
-            "morning": f"Rest and explore the local area. Visit nearby cafes.",
-            "afternoon": f"Sightseeing and local attractions.",
-            "evening": f"Relax at the hotel or enjoy local cuisine.",
+            "morning": f"Start with a relaxed breakfast and explore areas related to {interests}.",
+            "afternoon": f"Visit the recommended attraction and nearby sightseeing spots.",
+            "evening": f"Try local food, shopping streets, or a calm walk depending on the weather.",
             "accommodation": itinerary["selected_hotel"]["Hotel Name"] if itinerary["selected_hotel"] else "Not booked",
-            "estimated_expenses": f"₹{1500 if travel_style == 'luxury' else (800 if travel_style == 'budget' else 1500)} (approx)"
+            "estimated_expenses": f"₹{4000 if travel_style == 'luxury' else (800 if travel_style == 'budget' else 1500)} (approx)"
         }
         
         # Add specific place recommendations for different days

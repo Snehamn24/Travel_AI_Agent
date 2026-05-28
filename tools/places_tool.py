@@ -1,4 +1,7 @@
 import json
+from pathlib import Path
+
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 
 def search_places(city, place_type=None, min_rating=0):
@@ -10,7 +13,7 @@ def search_places(city, place_type=None, min_rating=0):
 
     try:
         # Read place data and apply city/type/rating filters
-        with open("data/places.json", "r", encoding="utf-8") as file:
+        with open(DATA_DIR / "places.json", "r", encoding="utf-8") as file:
             places = json.load(file)
 
         results = []

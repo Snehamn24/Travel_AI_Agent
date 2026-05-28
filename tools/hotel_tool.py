@@ -1,4 +1,7 @@
 import json
+from pathlib import Path
+
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 
 def search_hotels(city, min_stars=0, max_price=float("inf")):
@@ -10,7 +13,7 @@ def search_hotels(city, min_stars=0, max_price=float("inf")):
 
     try:
         # Load hotel dataset and filter by user preferences
-        with open("data/hotels.json", "r", encoding="utf-8") as file:
+        with open(DATA_DIR / "hotels.json", "r", encoding="utf-8") as file:
             hotels = json.load(file)
 
         results = []

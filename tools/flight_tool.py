@@ -1,4 +1,7 @@
 import json
+from pathlib import Path
+
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 
 def search_flights(source, destination):
@@ -10,7 +13,7 @@ def search_flights(source, destination):
 
     try:
         # Load flight records from the local JSON dataset
-        with open("data/flights.json", "r", encoding="utf-8") as file:
+        with open(DATA_DIR / "flights.json", "r", encoding="utf-8") as file:
             flights = json.load(file)
 
         results = []
